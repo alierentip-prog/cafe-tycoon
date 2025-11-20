@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Rafık'ın Kafe İşletmesi 🍔</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2c3e50;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        h1 { margin-top: 0; text-shadow: 2px 2px #000; }
+
+        /* Üst Bilgi Paneli */
+        #stats-bar {
+            background: #34495e;
+            padding: 15px;
+            border-radius: 10px;
+            display: flex;
+            gap: 20px;
+            width: 800px;
+            justify-content: space-around;
+            font-size: 1.2em;
+            border: 2px solid #f1c40f;
+            margin-bottom: 10px;
+        }
+
+        /* Oyun Alanı ve Menü Konteyner */
+        #game-container {
+            display: flex;
+            gap: 20px;
+        }
+
+        /* Oyun Alanı (Kuş Bakışı Grid) */
+        #grid-map {
+            display: grid;
+            grid-template-columns: repeat(10, 50px);
+            grid-template-rows: repeat(10, 50px);
+            gap: 2px;
+            background-color: #95a5a6; /* Zemin Rengi */
+            border: 5px solid #7f8c8d;
+            padding: 5px;
+        }
+
+        .cell {
+            width: 50px;
+            height: 50px;
+            background-color: #ecf0f1; /* Boş fayans */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .cell:hover { background-color: #bdc3c7; }
+        
+        /* Dolu hücre animasyonu */
+        .occupied { animation: pop 0.3s ease; }
+
+        /* Sağ Menü (Dükkan) */
+        #shop-menu {
+            background: #ecf0f1;
+            color: #2c3e50;
+            padding: 20px;
+            border-radius: 10px;
+            width: 250px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .shop-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: 0.2s;
+        }
+
+        .shop-btn:hover { background: #c0392b; transform: scale(1.02); }
+        .shop-btn.active { background: #27ae60; border: 2px solid #f1c40f; }
+
+        @keyframes pop {
+            0% { transform: scale(0.5); }
+            100% { transform: scale(1); }
+        }
+
+        /* Müşteri Animasyonu */
+        .customer {
+            position: absolute;
+            font-size: 20px;
+            animation: eat 3s infinite;
+        }
+        
+        @keyframes eat {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🍔 Kafe Tycoon: Kuş Bakışı</h1>
+
+    <div id="stats-bar">
+        <span>💰 Bakiye: <b id="money">500</b> TL</span>
+        <span>👥 Müşteriler: <b id="customers">0</b></span>
+        <span>⭐ Popülerlik: <b id="popularity">0</b></span>
+    </div>
+
+    <div id="game-container">
+        <div id="grid-map"></div>
+
+        <div id="shop-menu">
+            <h3>🛒 Market</h3>
+            <p style="font-size:0.8em; color:#7f8c8d;">Önce malzemeyi seç, sonra haritaya tıkla.</p>
+            
+            <button class="shop-btn" onclick="selectItem('table', 100, '🪑', 0)">
+                <span>🪑 Masa</span> <span>100 TL</span>
+            </button>
+            
+            <button class="shop-btn" onclick="selectItem('burger', 300, '🍔', 5)">
+                <span>🍔 Burger Ocağı</span> <span>300 TL</span>
+            </button>
+            
+            <button class="shop-btn" onclick="selectItem('pizza', 400, '🍕', 8)">
+                <span>🍕 Pizza Fırını</span> <span>400 TL</span>
+            </button>
+
+            <button class="shop-btn" onclick="selectItem('pasta', 350, '🍝', 6)">
+                <span>🍝 Makarna Tezg.</span> <span>350 TL</span>
+            </button>
+
+            <button class="shop-btn" onclick="selectItem('cake', 200, '🍰', 4)">
+                <span>🍰 Pasta Dolabı</span> <span>200 TL</span>
+            </button>
+
+            <button class="shop-btn" onclick="selectItem('vending', 500, '🎰', 10)">
+                <span>🎰 Otomat</span> <span>500 TL</span>
+            </button>
+
+            <button class="shop-btn" style="background:#95a5a6;" onclick="selectItem('delete', 0, '', 0)">
+                <span>❌ Silgi</span> <span>0 TL</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Oyun Değişkenleri ---
+        let money = 500;
+        let popularity = 0; // Mutfak eşyaları popülerliği artırır
+        let customerCount = 0;
+        let maxCustomers = 0; // Masa sayısı belirler
+        
+        let selectedItem = null; // Şu an seçili olan eşya
+        
+        // Izgara Boyutu 10x10
+        const rows = 10;
+        const cols = 10;
+        const gridMap = document.getElementById('grid-map');
+
+        // Eşya Veritabanı
+        const items = {
+            'table': { price: 100, icon: '🪑', type: 'seat' },
+            'burger': { price: 300, icon: '🍔', type: 'kitchen', income: 15 },
+            'pizza': { price: 400, icon: '🍕', type: 'kitchen', income: 20 },
+            'pasta': { price: 350, icon: '🍝', type: 'kitchen', income: 18 },
+            'cake': { price: 200, icon: '🍰', type: 'kitchen', income: 10 },
+            'vending': { price: 500, icon: '🎰', type: 'passive', income: 25 },
+            'delete': { price: 0, icon: '', type: 'tool' }
+        };
+
+        // --- Haritayı Oluştur ---
+        let mapData = []; // Hücrelerin durumunu tutar
+
+        function initMap() {
+            gridMap.innerHTML = '';
+            mapData = [];
+            for (let i = 0; i < rows * cols; i++) {
+                let cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.dataset.index = i;
+                cell.onclick = () => placeItem(cell, i);
+                gridMap.appendChild(cell);
+                
+                mapData.push({ type: 'empty', content: null });
+            }
+        }
+        initMap();
+
+        // --- Market İşlemleri ---
+        function selectItem(key, price, icon, income) {
+            selectedItem = { key, price, icon, income };
+            
+            // Buton görsel güncelleme
+            document.querySelectorAll('.shop-btn').forEach(btn => btn.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+        }
+
+        function placeItem(cell, index) {
+            if (!selectedItem) {
+                alert("Lütfen marketten bir eşya seç!");
+                return;
+            }
+
+            // Silme işlemi
+            if (selectedItem.key === 'delete') {
+                if (mapData[index].type !== 'empty') {
+                    // Geri satış (Yarı fiyatına)
+                    let refund = 0; 
+                    // Basit tutmak için refund eklemedim ama eklenebilir
+                    cell.innerHTML = '';
+                    cell.classList.remove('occupied');
+                    cell.style.backgroundColor = '#ecf0f1';
+                    
+                    // İstatistikleri düşür
+                    if (mapData[index].type === 'seat') maxCustomers--;
+                    if (mapData[index].type === 'kitchen') popularity -= items[mapData[index].content].income;
+                    
+                    mapData[index] = { type: 'empty', content: null };
+                    updateUI();
+                }
+                return;
+            }
+
+            // Satın alma ve yerleştirme
+            if (mapData[index].type === 'empty') {
+                if (money >= selectedItem.price) {
+                    money -= selectedItem.price;
+                    
+                    // Görseli yerleştir
+                    cell.innerHTML = selectedItem.icon;
+                    cell.classList.add('occupied');
+                    
+                    // Veriyi kaydet
+                    let itemType = items[selectedItem.key].type;
+                    mapData[index] = { type: itemType, content: selectedItem.key };
+
+                    // Özellikleri güncelle
+                    if (itemType === 'seat') maxCustomers++;
+                    if (itemType === 'kitchen' || itemType === 'passive') popularity += selectedItem.income;
+
+                    updateUI();
+                } else {
+                    alert("Yetersiz Bakiye!");
+                }
+            } else {
+                alert("Burası dolu!");
+            }
+        }
+
+        // --- Oyun Döngüsü (Loop) ---
+        setInterval(() => {
+            // 1. Müşteri Gelme Mantığı
+            // Eğer boş masa varsa ve popülerlik > 0 ise müşteri gelir
+            let currentSeats = document.querySelectorAll('.cell');
+            let seatedCustomers = 0; // Basit simülasyon için
+            
+            // Masalara rastgele müşteri oturt (Görsel efekt)
+            mapData.forEach((data, idx) => {
+                if (data.type === 'seat') {
+                    let cell = currentSeats[idx];
+                    // Basit olasılık: Popülerlik arttıkça masa dolma ihtimali artar
+                    let chance = Math.random() * 100;
+                    
+                    if (chance < popularity + 10) {
+                        // Masa dolu görünümü (Basitçe opacity değişimi veya icon değişimi yapılabilir)
+                        // Şimdilik sadece parayı hesaplayalım.
+                        if (!cell.innerHTML.includes('👤')) {
+                             // Müşteri oturdu
+                             // cell.innerHTML += '<span class="customer">👤</span>'; // İkon karmaşası olmasın diye kapalı
+                        }
+                        seatedCustomers++;
+                    }
+                }
+            });
+
+            customerCount = seatedCustomers;
+
+            // 2. Para Kazanma Mantığı
+            // Her dolu masa ve her mutfak aleti para üretir
+            let income = 0;
+            
+            // Mutfak aletleri pasif gelir sağlar (Sipariş hızı gibi düşün)
+            // Masalar müşteri kapasitesini, Mutfak ise geliri belirler
+            if (customerCount > 0) {
+                // Temel gelir + Popülerlik geliri
+                let baseIncome = customerCount * 2; // Müşteri başına 2 TL
+                // Mutfak ekipmanı bonusu
+                income = baseIncome + (popularity / 5); 
+            }
+            
+            // Otomatlar her zaman az da olsa para kazandırır
+            mapData.forEach(data => {
+                if (data.content === 'vending') income += 5;
+            });
+
+            money += income;
+            updateUI();
+
+        }, 2000); // Her 2 saniyede bir güncellenir
+
+        function updateUI() {
+            document.getElementById('money').innerText = Math.floor(money);
+            document.getElementById('customers').innerText = customerCount + " / " + maxCustomers;
+            document.getElementById('popularity').innerText = popularity;
+        }
+
+    </script>
+</body>
+  </html>
+  
